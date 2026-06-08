@@ -90,7 +90,7 @@ struct DashboardView: View {
                     ForEach(lastFiveUsed) { tool in
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(sourceColor(tool.sourceType))
+                                .fill(tool.sourceType.color)
                                 .frame(width: 8, height: 8)
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -113,12 +113,12 @@ struct DashboardView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Text(sourceTypeLabel(tool.sourceType))
+                                Text(tool.sourceType.label)
                                     .font(.caption2)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1)
-                                    .background(sourceColor(tool.sourceType).opacity(0.15))
-                                    .foregroundStyle(sourceColor(tool.sourceType))
+                                    .background(tool.sourceType.color.opacity(0.15))
+                                    .foregroundStyle(tool.sourceType.color)
                                     .clipShape(Capsule())
                             }
                         }
@@ -140,14 +140,14 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 14) {
                 distributionSection(
                     title: "来源类型",
-                    items: sourceDistribution.prefix(6).map { (sourceTypeLabel($0.0), sourceColor($0.0), $0.1) }
+                    items: sourceDistribution.prefix(6).map { ($0.0.label, $0.0.color, $0.1) }
                 )
 
                 Divider()
 
                 distributionSection(
                     title: "风险等级",
-                    items: riskDistribution.map { (riskLevelLabel($0.0), riskColor($0.0), $0.1) }
+                    items: riskDistribution.map { ($0.0.label + "风险", $0.0.color, $0.1) }
                 )
             }
         }
@@ -251,49 +251,6 @@ struct DashboardView: View {
             .padding(.vertical, 20)
     }
 
-    private func sourceTypeLabel(_ type: SourceType) -> String {
-        switch type {
-        case .github:   return "GitHub"
-        case .local:    return "本地"
-        case .homebrew: return "Homebrew"
-        case .npm:      return "npm"
-        case .pip:      return "pip"
-        case .binary:   return "二进制"
-        case .script:   return "脚本"
-        case .website:  return "网站"
-        case .unknown:  return "未知"
-        }
-    }
-
-    private func riskLevelLabel(_ level: RiskLevel) -> String {
-        switch level {
-        case .low:    return "低风险"
-        case .medium: return "中风险"
-        case .high:   return "高风险"
-        }
-    }
-
-    private func sourceColor(_ type: SourceType) -> Color {
-        switch type {
-        case .github:   return .purple
-        case .local:    return .blue
-        case .homebrew: return .orange
-        case .npm:      return .red
-        case .pip:      return .yellow
-        case .binary:   return .gray
-        case .script:   return .teal
-        case .website:  return .cyan
-        case .unknown:  return Color(nsColor: .secondaryLabelColor)
-        }
-    }
-
-    private func riskColor(_ level: RiskLevel) -> Color {
-        switch level {
-        case .low:    return .green
-        case .medium: return .yellow
-        case .high:   return .red
-        }
-    }
 }
 
 // MARK: - Stat Card

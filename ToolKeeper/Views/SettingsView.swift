@@ -7,8 +7,14 @@ struct SettingsView: View {
     @State private var defaultToolsDirectory: String = ""
     @State private var logRetentionDays: Int = 30
     @State private var dangerPatternsText: String = ""
+    @State private var anthropicBaseURL: String = ""
+    @State private var anthropicAPIKey: String = ""
+    @State private var anthropicModel: String = ""
+    @State private var anthropicUseFullURL: Bool = false
 
     @State private var showingSaveConfirmation = false
+    @State private var testResult: String?
+    @State private var isTesting = false
 
     var body: some View {
         Form {
@@ -16,6 +22,7 @@ struct SettingsView: View {
             defaultsSection
             logRetentionSection
             dangerPatternsSection
+            aiSettingsSection
             actionsSection
         }
         .formStyle(.grouped)
@@ -107,6 +114,58 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - AI Settings
+
+    private var aiSettingsSection: some View {
+        Section("AI 设置") {
+            HStack {
+                Text("完整URL")
+                Spacer()
+                Toggle("完整URL", isOn: $anthropicUseFullURL)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+
+            if anthropicUseFullURL {
+                TextField("请求地址（如 https://example.com/anthropic/v1/messages）", text: $anthropicBaseURL)
+                    .textContentType(.URL)
+                Text("完整 URL 模式：直接使用填写的地址发起请求，不拼接 /v1/messages。适用于中转站或自定义端点。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                TextField("请求地址（如 https://api.anthropic.com）", text: $anthropicBaseURL)
+                    .textContentType(.URL)
+                Text("自动在请求地址后拼接 /v1/messages。适用于标准 Anthropic API 或兼容端点。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            SecureField("API KEY", text: $anthropicAPIKey)
+
+            TextField("模型名称", text: $anthropicModel)
+
+            HStack {
+                Button {
+                    Task { await testConnection() }
+                } label: {
+                    Label(isTesting ? "测试中..." : "测试连接",
+                          systemImage: isTesting ? "arrow.clockwise" : "bolt.fill")
+                }
+                .disabled(isTesting || anthropicAPIKey.isEmpty)
+
+                if let result = testResult {
+                    Text(result)
+                        .font(.caption)
+                        .foregroundStyle(result.contains("成功") ? .green : .red)
+                }
+            }
+
+            Text("用于 AI 智能导入功能。支持 Anthropic /v1/messages 格式。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     // MARK: - Actions
 
     private var actionsSection: some View {
@@ -132,6 +191,10 @@ struct SettingsView: View {
         defaultToolsDirectory = settings.defaultToolsDirectory
         logRetentionDays = settings.logRetentionDays
         dangerPatternsText = settings.dangerPatterns.joined(separator: "\n")
+        anthropicBaseURL = settings.anthropicBaseURL
+        anthropicAPIKey = settings.anthropicAPIKey
+        anthropicModel = settings.anthropicModel
+        anthropicUseFullURL = settings.anthropicUseFullURL
     }
 
     private func save() {
@@ -142,6 +205,10 @@ struct SettingsView: View {
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+        settings.anthropicBaseURL = anthropicBaseURL
+        settings.anthropicAPIKey = anthropicAPIKey
+        settings.anthropicModel = anthropicModel
+        settings.anthropicUseFullURL = anthropicUseFullURL
 
         settings.save()
         showingSaveConfirmation = true
@@ -197,5 +264,30 @@ struct SettingsView: View {
         defaultToolsDirectory = defaults.defaultToolsDirectory
         logRetentionDays = defaults.logRetentionDays
         dangerPatternsText = defaults.dangerPatterns.joined(separator: "\n")
+        anthropicBaseURL = defaults.anthropicBaseURL
+        anthropicAPIKey = defaults.anthropicAPIKey
+        anthropicModel = defaults.anthropicModel
+        anthropicUseFullURL = defaults.anthropicUseFullURL
+    }
+
+    private func testConnection() async {
+        isTesting = true
+        testResult = nil
+
+        let client = AnthropicAPIClient(
+            baseURL: anthropicBaseURL,
+            apiKey: anthropicAPIKey,
+            model: anthropicModel,
+            useFullURL: anthropicUseFullURL
+        )
+
+        do {
+            let response = try await client.send(prompt: "Say 'ok' in one word.")
+            testResult = response.contains("ok") ? "连接成功" : "连接成功（响应: \(response.prefix(50))）"
+        } catch {
+            testResult = "失败: \(error.localizedDescription)"
+        }
+
+        isTesting = false
     }
 }

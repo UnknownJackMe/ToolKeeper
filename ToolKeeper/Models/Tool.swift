@@ -13,6 +13,8 @@ enum SourceType: String, CaseIterable, Identifiable, Codable {
     case script
     case website
     case unknown
+    case claudeCode
+    case codex
 
     var id: String { rawValue }
 }

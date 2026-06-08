@@ -11,6 +11,7 @@ struct ImportWizardView: View {
         case localFolder = "本地文件夹"
         case githubURL = "GitHub 地址"
         case scanFolder = "扫描文件夹"
+        case aiImport = "AI 导入"
 
         var id: String { rawValue }
     }
@@ -28,6 +29,10 @@ struct ImportWizardView: View {
             ScanFolderTab(modelContext: modelContext)
                 .tabItem { Label("扫描文件夹", systemImage: "doc.text.magnifyingglass") }
                 .tag(ImportTab.scanFolder)
+
+            AIImportTab(modelContext: modelContext)
+                .tabItem { Label("AI 导入", systemImage: "sparkles") }
+                .tag(ImportTab.aiImport)
         }
         .formStyle(.grouped)
         .frame(minWidth: 550, minHeight: 450)
@@ -513,5 +518,362 @@ private struct ScanFolderTab: View {
             modelContext.insert(tool)
         }
         try? modelContext.save()
+    }
+}
+
+// MARK: - AI Import Tab
+
+private struct AIImportTab: View {
+    let modelContext: ModelContext
+
+    @State private var viewModel = AIImportViewModel()
+    @State private var editingIndex: Int?
+    @State private var editingSuggestion: AIToolSuggestion?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            headerSection
+
+            if viewModel.suggestions.isEmpty && !viewModel.isAnalyzing {
+                directoryPickerSection
+            }
+
+            if viewModel.isAnalyzing {
+                analyzingSection
+            }
+
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+            }
+
+            if !viewModel.suggestions.isEmpty && !viewModel.isAnalyzing {
+                resultsSection
+            }
+
+            if viewModel.importedCount > 0 {
+                importedSection
+            }
+
+            Spacer()
+        }
+        .padding()
+        .sheet(item: $editingSuggestion) { suggestion in
+            NavigationStack {
+                AISuggestionEditView(suggestion: suggestion) { updated in
+                    if let index = editingIndex {
+                        viewModel.updateSuggestion(at: index, with: updated)
+                    }
+                    editingSuggestion = nil
+                    editingIndex = nil
+                } onCancel: {
+                    editingSuggestion = nil
+                    editingIndex = nil
+                }
+            }
+            .frame(minWidth: 500, minHeight: 450)
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        Text("使用 AI 递归分析目录，自动识别并导入工具。")
+            .font(.headline)
+    }
+
+    // MARK: - Directory Picker
+
+    private var directoryPickerSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Button {
+                    viewModel.pickDirectory()
+                } label: {
+                    Label("选择目录...", systemImage: "folder.badge.plus")
+                }
+
+                if !viewModel.directoryPath.isEmpty {
+                    Text(viewModel.directoryPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if !viewModel.directoryPath.isEmpty {
+                Button {
+                    viewModel.analyzeDirectory()
+                } label: {
+                    Label("开始 AI 分析", systemImage: "sparkles")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.directoryPath.isEmpty)
+            }
+        }
+    }
+
+    // MARK: - Analyzing
+
+    private var analyzingSection: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("正在扫描目录并调用 AI 分析，请稍候...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding()
+    }
+
+    // MARK: - Results
+
+    private var resultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Divider()
+
+            HStack {
+                Text("AI 识别到 \(viewModel.suggestions.count) 个工具")
+                    .font(.headline)
+                Spacer()
+                Button("全选") { viewModel.selectAll() }
+                Button("取消全选") { viewModel.deselectAll() }
+                Button("重新分析") { viewModel.reset() }
+            }
+
+            List {
+                ForEach(Array(viewModel.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                    HStack(spacing: 10) {
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: { viewModel.selectedIndices.contains(index) },
+                                set: { _ in viewModel.toggleSelection(index) }
+                            )
+                        )
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(suggestion.name)
+                                    .font(.system(.body, weight: .medium))
+
+                                Text(suggestion.importType == "aiTool" ? "AI 工具" : "工具")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(
+                                        (suggestion.importType == "aiTool"
+                                            ? Color.indigo
+                                            : Color.blue
+                                        ).opacity(0.15)
+                                    )
+                                    .foregroundStyle(
+                                        suggestion.importType == "aiTool"
+                                            ? Color.indigo
+                                            : Color.blue
+                                    )
+                                    .clipShape(Capsule())
+
+                                Text(suggestion.sourceType)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.secondary.opacity(0.15))
+                                    .clipShape(Capsule())
+                            }
+
+                            if !suggestion.summary.isEmpty {
+                                Text(suggestion.summary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+
+                            HStack(spacing: 4) {
+                                if !suggestion.tags.isEmpty {
+                                    ForEach(suggestion.tags.prefix(4), id: \.self) { tag in
+                                        Text(tag)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 1)
+                                            .background(Color.accentColor.opacity(0.1))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+
+                                if !suggestion.commands.isEmpty {
+                                    Text("\(suggestion.commands.count) 个命令")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            if let path = suggestion.localPath {
+                                Text(path)
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button {
+                            editingIndex = index
+                            editingSuggestion = suggestion
+                        } label: {
+                            Label("查看与编辑", systemImage: "pencil")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .frame(minHeight: 150)
+
+            Button {
+                viewModel.importSelected(modelContext: modelContext)
+            } label: {
+                Label("导入选中项（\(viewModel.selectedIndices.count)）",
+                      systemImage: "plus.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!viewModel.hasSelection)
+        }
+    }
+
+    // MARK: - Imported
+
+    private var importedSection: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("成功导入 \(viewModel.importedCount) 个工具")
+                .font(.subheadline)
+        }
+        .padding(.top, 4)
+    }
+}
+
+// MARK: - AI Suggestion Edit View
+
+private struct AISuggestionEditView: View {
+    let suggestion: AIToolSuggestion
+    let onSave: (AIToolSuggestion) -> Void
+    let onCancel: () -> Void
+
+    @State private var name: String
+    @State private var summary: String
+    @State private var sourceType: String
+    @State private var sourceURL: String
+    @State private var localPath: String
+    @State private var tagsText: String
+    @State private var importType: String
+    @State private var commands: [SuggestedCommand]
+
+    init(suggestion: AIToolSuggestion, onSave: @escaping (AIToolSuggestion) -> Void, onCancel: @escaping () -> Void) {
+        self.suggestion = suggestion
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _name = State(initialValue: suggestion.name)
+        _summary = State(initialValue: suggestion.summary)
+        _sourceType = State(initialValue: suggestion.sourceType)
+        _sourceURL = State(initialValue: suggestion.sourceURL ?? "")
+        _localPath = State(initialValue: suggestion.localPath ?? "")
+        _tagsText = State(initialValue: suggestion.tags.joined(separator: ", "))
+        _importType = State(initialValue: suggestion.importType)
+        _commands = State(initialValue: suggestion.commands)
+    }
+
+    var body: some View {
+        Form {
+            Section("基本信息") {
+                TextField("名称", text: $name)
+                TextField("摘要", text: $summary)
+                Picker("来源类型", selection: $sourceType) {
+                    Text("GitHub").tag("github")
+                    Text("本地").tag("local")
+                    Text("脚本").tag("script")
+                    Text("Homebrew").tag("homebrew")
+                    Text("npm").tag("npm")
+                    Text("pip").tag("pip")
+                    Text("Claude Code").tag("claudeCode")
+                    Text("Codex").tag("codex")
+                    Text("未知").tag("unknown")
+                }
+                TextField("来源 URL", text: $sourceURL)
+                TextField("本地路径", text: $localPath)
+                TextField("标签（逗号分隔）", text: $tagsText)
+                Picker("导入类型", selection: $importType) {
+                    Text("工具").tag("tool")
+                    Text("AI 工具").tag("aiTool")
+                }
+            }
+
+            Section("命令 (\(commands.count))") {
+                ForEach(Array(commands.enumerated()), id: \.element.id) { index, cmd in
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("命令名称", text: Binding(
+                            get: { commands[index].name },
+                            set: { commands[index].name = $0 }
+                        ))
+                        .font(.system(.body, weight: .medium))
+
+                        TextField("命令文本", text: Binding(
+                            get: { commands[index].commandText },
+                            set: { commands[index].commandText = $0 }
+                        ))
+                        .font(.system(.caption, design: .monospaced))
+
+                        TextField("描述", text: Binding(
+                            get: { commands[index].description ?? "" },
+                            set: { commands[index].description = $0.isEmpty ? nil : $0 }
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onDelete { indexSet in
+                    commands.remove(atOffsets: indexSet)
+                }
+
+                Button {
+                    commands.append(SuggestedCommand(name: "", commandText: "", description: nil))
+                } label: {
+                    Label("添加命令", systemImage: "plus")
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("查看与编辑")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("取消") { onCancel() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("保存") {
+                    var updated = suggestion
+                    updated.name = name
+                    updated.summary = summary
+                    updated.sourceType = sourceType
+                    updated.sourceURL = sourceURL.isEmpty ? nil : sourceURL
+                    updated.localPath = localPath.isEmpty ? nil : localPath
+                    updated.tags = tagsText
+                        .split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    updated.importType = importType
+                    updated.commands = commands
+                    onSave(updated)
+                }
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
     }
 }

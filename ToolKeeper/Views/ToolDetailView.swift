@@ -6,12 +6,9 @@ struct ToolDetailView: View {
 
     let tool: Tool
 
+    @State private var viewModel = ToolDetailViewModel()
     @State private var selectedCommand: ToolCommand?
     @State private var showingEditTool = false
-    @State private var showingDeleteConfirmation = false
-    @State private var showingHighRiskConfirmation = false
-    @State private var pendingCommand: ToolCommand?
-    @State private var activeRunner: CommandRunner?
 
     // MARK: - Computed
 
@@ -34,8 +31,8 @@ struct ToolDetailView: View {
                 headerSection
                 infoSection
                 commandsSection
-                if let runner = activeRunner {
-                    RunConsoleView(runner: runner)
+                if viewModel.commandRunner.isRunning || !viewModel.commandRunner.stdoutLines.isEmpty || !viewModel.commandRunner.stderrLines.isEmpty || viewModel.commandRunner.exitCode != nil {
+                    RunConsoleView(runner: viewModel.commandRunner)
                 }
                 recentRunsSection
                 notesSection
@@ -60,11 +57,11 @@ struct ToolDetailView: View {
         }
         .confirmationDialog(
             "删除工具",
-            isPresented: $showingDeleteConfirmation,
+            isPresented: $viewModel.showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button("删除", role: .destructive) {
-                deleteTool()
+                viewModel.deleteTool(tool, modelContext: modelContext)
             }
             Button("取消", role: .cancel) {}
         } message: {
@@ -72,20 +69,18 @@ struct ToolDetailView: View {
         }
         .confirmationDialog(
             "高风险命令",
-            isPresented: $showingHighRiskConfirmation,
+            isPresented: $viewModel.showingHighRiskConfirmation,
             titleVisibility: .visible
         ) {
             Button("仍然运行", role: .destructive) {
-                if let cmd = pendingCommand {
-                    executeCommand(cmd)
-                }
+                viewModel.confirmRun(modelContext: modelContext, shell: "/bin/zsh")
             }
             Button("取消", role: .cancel) {
-                pendingCommand = nil
+                viewModel.pendingCommand = nil
             }
         } message: {
-            if let cmd = pendingCommand {
-                Text("此命令被标记为高风险：\n\n\(cmd.commandText)\n\n是否继续执行？")
+            if let pending = viewModel.pendingCommand {
+                Text("此命令被标记为高风险：\n\n\(pending.command.commandText)\n\n是否继续执行？")
             }
         }
     }
@@ -108,9 +103,9 @@ struct ToolDetailView: View {
             }
 
             HStack(spacing: 8) {
-                Badge(text: sourceTypeLabel(tool.sourceType), color: .blue)
-                Badge(text: statusLabel(tool.status), color: statusColor)
-                Badge(text: riskLevelLabel(tool.riskLevel), color: riskColor)
+                Badge(text: tool.sourceType.label, color: tool.sourceType.color)
+                Badge(text: tool.status.label, color: tool.status.color)
+                Badge(text: tool.riskLevel.label, color: tool.riskLevel.color)
             }
         }
     }
@@ -190,12 +185,13 @@ struct ToolDetailView: View {
                     ForEach(sortedCommands) { command in
                         CommandRow(
                             command: command,
+                            isRunning: viewModel.commandRunner.isRunning,
                             isSelected: selectedCommand?.id == command.id,
-                            onRun: { runCommand(command) },
-                            onStop: { stopCommand() },
-                            onCopy: { copyCommand(command) },
+                            onRun: { viewModel.runCommand(command, tool: tool, modelContext: modelContext, shell: "/bin/zsh") },
+                            onStop: { viewModel.stopCommand() },
+                            onCopy: { viewModel.copyCommand(command) },
                             onEdit: { selectedCommand = command },
-                            onDelete: { deleteCommand(command) }
+                            onDelete: { viewModel.deleteCommand(command, tool: tool, modelContext: modelContext) }
                         )
                         if command.id != sortedCommands.last?.id {
                             Divider()
@@ -284,7 +280,7 @@ struct ToolDetailView: View {
         HStack(spacing: 12) {
             if let path = tool.localPath, !path.isEmpty {
                 Button {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+                    viewModel.openInFinder(path)
                 } label: {
                     Label("在 Finder 中打开", systemImage: "folder")
                 }
@@ -298,7 +294,7 @@ struct ToolDetailView: View {
             }
 
             Button {
-                revealLogs()
+                viewModel.revealLogs()
             } label: {
                 Label("查看日志", systemImage: "doc.text.magnifyingglass")
             }
@@ -312,124 +308,11 @@ struct ToolDetailView: View {
             Spacer()
 
             Button(role: .destructive) {
-                showingDeleteConfirmation = true
+                viewModel.showingDeleteConfirmation = true
             } label: {
                 Label("删除工具", systemImage: "trash")
             }
         }
-    }
-
-    // MARK: - Helpers
-
-    private var statusColor: Color {
-        switch tool.status {
-        case .active: return .green
-        case .archived: return .orange
-        case .broken: return .red
-        case .unknown: return .gray
-        }
-    }
-
-    private var riskColor: Color {
-        switch tool.riskLevel {
-        case .low: return .green
-        case .medium: return .yellow
-        case .high: return .red
-        }
-    }
-
-    private func sourceTypeLabel(_ type: SourceType) -> String {
-        switch type {
-        case .github: return "GitHub"
-        case .local: return "本地"
-        case .homebrew: return "Homebrew"
-        case .npm: return "npm"
-        case .pip: return "pip"
-        case .binary: return "二进制"
-        case .script: return "脚本"
-        case .website: return "网站"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func statusLabel(_ status: ToolStatus) -> String {
-        switch status {
-        case .active: return "活跃"
-        case .archived: return "已归档"
-        case .broken: return "已损坏"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func riskLevelLabel(_ level: RiskLevel) -> String {
-        switch level {
-        case .low: return "低"
-        case .medium: return "中"
-        case .high: return "高"
-        }
-    }
-
-    private func runCommand(_ command: ToolCommand) {
-        let risk = RiskClassifier.classify(command: command.commandText)
-        if risk == .high || command.requiresConfirmation {
-            pendingCommand = command
-            showingHighRiskConfirmation = true
-            return
-        }
-        executeCommand(command)
-    }
-
-    private func executeCommand(_ command: ToolCommand) {
-        pendingCommand = nil
-        let runner = CommandRunner()
-        activeRunner = runner
-        let cwd = command.workingDirectory ?? tool.defaultWorkingDirectory
-        runner.run(
-            command: command.commandText,
-            workingDirectory: cwd,
-            shell: "/bin/zsh",
-            timeout: command.timeoutSeconds
-        ) { [weak runner] exitCode in
-            let history = LogStore.logRun(
-                toolID: tool.id,
-                commandID: command.id,
-                command: command.commandText,
-                cwd: cwd,
-                exitCode: exitCode,
-                startedAt: Date(),
-                stdoutPath: nil,
-                stderrPath: nil,
-                preview: runner?.stdoutLines.suffix(5).joined(separator: "\n") ?? ""
-            )
-            modelContext.insert(history)
-            tool.lastUsedAt = Date()
-            tool.updatedAt = Date()
-            try? modelContext.save()
-        }
-    }
-
-    private func stopCommand() {
-        activeRunner?.stop()
-    }
-
-    private func copyCommand(_ command: ToolCommand) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command.commandText, forType: .string)
-    }
-
-    private func deleteCommand(_ command: ToolCommand) {
-        modelContext.delete(command)
-        try? modelContext.save()
-    }
-
-    private func deleteTool() {
-        modelContext.delete(tool)
-        try? modelContext.save()
-    }
-
-    private func revealLogs() {
-        let logsPath = AppPaths.logs
-        NSWorkspace.shared.open(URL(fileURLWithPath: logsPath))
     }
 }
 
@@ -437,6 +320,7 @@ struct ToolDetailView: View {
 
 private struct CommandRow: View {
     let command: ToolCommand
+    let isRunning: Bool
     let isSelected: Bool
     let onRun: () -> Void
     let onStop: () -> Void
@@ -467,12 +351,14 @@ private struct CommandRow: View {
                     Label("运行", systemImage: "play.fill")
                 }
                 .buttonStyle(.borderless)
+                .disabled(isRunning)
                 .help("运行命令")
 
                 Button(action: onStop) {
                     Label("停止", systemImage: "stop.fill")
                 }
                 .buttonStyle(.borderless)
+                .disabled(!isRunning)
                 .help("停止命令")
 
                 Button(action: onCopy) {

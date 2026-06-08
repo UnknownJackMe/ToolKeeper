@@ -73,7 +73,7 @@ struct ToolEditorView: View {
         Section("来源") {
             Picker("来源类型", selection: $sourceType) {
                 ForEach(SourceType.allCases) { type in
-                    Text(sourceTypeLabel(type)).tag(type)
+                    Text(type.label).tag(type)
                 }
             }
 
@@ -101,13 +101,13 @@ struct ToolEditorView: View {
         Section("分类") {
             Picker("状态", selection: $status) {
                 ForEach(ToolStatus.allCases) { s in
-                    Text(statusLabel(s)).tag(s)
+                    Text(s.label).tag(s)
                 }
             }
 
             Picker("风险等级", selection: $riskLevel) {
                 ForEach(RiskLevel.allCases) { level in
-                    Text(riskLevelLabel(level)).tag(level)
+                    Text(level.label).tag(level)
                 }
             }
         }
@@ -223,36 +223,4 @@ struct ToolEditorView: View {
         }
     }
 
-    // MARK: - Label Helpers
-
-    private func sourceTypeLabel(_ type: SourceType) -> String {
-        switch type {
-        case .github: return "GitHub"
-        case .local: return "本地"
-        case .homebrew: return "Homebrew"
-        case .npm: return "npm"
-        case .pip: return "pip"
-        case .binary: return "二进制"
-        case .script: return "脚本"
-        case .website: return "网站"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func statusLabel(_ status: ToolStatus) -> String {
-        switch status {
-        case .active: return "活跃"
-        case .archived: return "已归档"
-        case .broken: return "已损坏"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func riskLevelLabel(_ level: RiskLevel) -> String {
-        switch level {
-        case .low: return "低"
-        case .medium: return "中"
-        case .high: return "高"
-        }
-    }
 }

@@ -7,86 +7,9 @@ struct ToolsListView: View {
     @Query(sort: \Tool.name)
     private var allTools: [Tool]
 
-    @State private var searchText = ""
-    @State private var filterSourceType: SourceType?
-    @State private var filterStatus: ToolStatus?
-    @State private var filterRiskLevel: RiskLevel?
-    @State private var tagFilterText = ""
-    @State private var sortOption: SortOption = .lastUsed
+    @State private var viewModel = ToolsViewModel()
     @State private var selectedTool: Tool?
     @State private var showingAddTool = false
-
-    enum SortOption: String, CaseIterable, Identifiable {
-        case lastUsed = "最近使用"
-        case recentlyAdded = "最近添加"
-        case name = "名称"
-        case riskLevel = "风险等级"
-
-        var id: String { rawValue }
-    }
-
-    // MARK: - Filtering & Sorting
-
-    private var filteredTools: [Tool] {
-        var result = allTools
-
-        // Text search
-        if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter { tool in
-                tool.name.lowercased().contains(query)
-                || tool.summary.lowercased().contains(query)
-                || tool.sourceURL?.lowercased().contains(query) == true
-                || tool.localPath?.lowercased().contains(query) == true
-                || tool.tags.contains { $0.lowercased().contains(query) }
-            }
-        }
-
-        // Source type filter
-        if let sourceType = filterSourceType {
-            result = result.filter { $0.sourceType == sourceType }
-        }
-
-        // Status filter
-        if let status = filterStatus {
-            result = result.filter { $0.status == status }
-        }
-
-        // Risk level filter
-        if let riskLevel = filterRiskLevel {
-            result = result.filter { $0.riskLevel == riskLevel }
-        }
-
-        // Tag filter
-        if !tagFilterText.isEmpty {
-            let filterTags = tagFilterText
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-                .filter { !$0.isEmpty }
-            if !filterTags.isEmpty {
-                result = result.filter { tool in
-                    let toolTags = tool.tags.map { $0.lowercased() }
-                    return filterTags.contains { filterTag in
-                        toolTags.contains { $0.contains(filterTag) }
-                    }
-                }
-            }
-        }
-
-        // Sort
-        switch sortOption {
-        case .lastUsed:
-            result.sort { ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }
-        case .recentlyAdded:
-            result.sort { $0.createdAt > $1.createdAt }
-        case .name:
-            result.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .riskLevel:
-            result.sort { $0.riskLevel.sortOrder > $1.riskLevel.sortOrder }
-        }
-
-        return result
-    }
 
     // MARK: - Body
 
@@ -134,7 +57,7 @@ struct ToolsListView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索工具...", text: $searchText)
+                TextField("搜索工具...", text: $viewModel.searchText)
                     .textFieldStyle(.plain)
             }
             .padding(8)
@@ -144,34 +67,34 @@ struct ToolsListView: View {
             // Filter pickers — two per row so they never over-compress
             Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                 GridRow {
-                    Picker("来源", selection: $filterSourceType) {
+                    Picker("来源", selection: $viewModel.selectedSourceType) {
                         Text("全部来源").tag(nil as SourceType?)
                         ForEach(SourceType.allCases) { type in
-                            Text(sourceTypeLabel(type)).tag(type as SourceType?)
+                            Text(type.label).tag(type as SourceType?)
                         }
                     }
                     .frame(maxWidth: .infinity)
 
-                    Picker("状态", selection: $filterStatus) {
+                    Picker("状态", selection: $viewModel.selectedStatus) {
                         Text("全部状态").tag(nil as ToolStatus?)
                         ForEach(ToolStatus.allCases) { status in
-                            Text(statusLabel(status)).tag(status as ToolStatus?)
+                            Text(status.label).tag(status as ToolStatus?)
                         }
                     }
                     .frame(maxWidth: .infinity)
                 }
 
                 GridRow {
-                    Picker("风险", selection: $filterRiskLevel) {
+                    Picker("风险", selection: $viewModel.selectedRiskLevel) {
                         Text("全部风险").tag(nil as RiskLevel?)
                         ForEach(RiskLevel.allCases) { level in
-                            Text(riskLevelLabel(level)).tag(level as RiskLevel?)
+                            Text(level.label).tag(level as RiskLevel?)
                         }
                     }
                     .frame(maxWidth: .infinity)
 
-                    Picker("排序", selection: $sortOption) {
-                        ForEach(SortOption.allCases) { option in
+                    Picker("排序", selection: $viewModel.sortOption) {
+                        ForEach(ToolsViewModel.SortOption.allCases) { option in
                             Text(option.rawValue).tag(option)
                         }
                     }
@@ -183,7 +106,7 @@ struct ToolsListView: View {
             HStack {
                 Image(systemName: "tag")
                     .foregroundStyle(.secondary)
-                TextField("按标签过滤（逗号分隔）", text: $tagFilterText)
+                TextField("按标签过滤（逗号分隔）", text: $viewModel.tagFilterText)
                     .textFieldStyle(.plain)
             }
             .padding(6)
@@ -197,14 +120,14 @@ struct ToolsListView: View {
 
     private var toolList: some View {
         List(selection: $selectedTool) {
-            if filteredTools.isEmpty {
+            if viewModel.filteredTools(allTools).isEmpty {
                 ContentUnavailableView(
                     "未找到工具",
                     systemImage: "magnifyingglass",
                     description: Text("请尝试调整搜索条件或过滤器。")
                 )
             } else {
-                ForEach(filteredTools) { tool in
+                ForEach(viewModel.filteredTools(allTools)) { tool in
                     NavigationLink(value: tool) {
                         ToolRow(tool: tool)
                     }
@@ -213,38 +136,6 @@ struct ToolsListView: View {
         }
     }
 
-    // MARK: - Label Helpers
-
-    private func sourceTypeLabel(_ type: SourceType) -> String {
-        switch type {
-        case .github: return "GitHub"
-        case .local: return "本地"
-        case .homebrew: return "Homebrew"
-        case .npm: return "npm"
-        case .pip: return "pip"
-        case .binary: return "二进制"
-        case .script: return "脚本"
-        case .website: return "网站"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func statusLabel(_ status: ToolStatus) -> String {
-        switch status {
-        case .active: return "活跃"
-        case .archived: return "已归档"
-        case .broken: return "已损坏"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func riskLevelLabel(_ level: RiskLevel) -> String {
-        switch level {
-        case .low: return "低"
-        case .medium: return "中"
-        case .high: return "高"
-        }
-    }
 }
 
 // MARK: - Tool Row
@@ -263,9 +154,9 @@ private struct ToolRow: View {
 
             // Badges row — always on their own line so they never crowd the name
             HStack(spacing: 4) {
-                StatusBadge(text: sourceTypeLabel(tool.sourceType), color: .blue)
-                StatusBadge(text: statusLabel(tool.status), color: statusColor)
-                StatusBadge(text: riskLevelLabel(tool.riskLevel), color: riskColor)
+                StatusBadge(text: tool.sourceType.label, color: tool.sourceType.color)
+                StatusBadge(text: tool.status.label, color: tool.status.color)
+                StatusBadge(text: tool.riskLevel.label, color: tool.riskLevel.color)
                 Spacer()
             }
 
@@ -325,53 +216,6 @@ private struct ToolRow: View {
         .padding(.vertical, 4)
     }
 
-    private var statusColor: Color {
-        switch tool.status {
-        case .active: return .green
-        case .archived: return .orange
-        case .broken: return .red
-        case .unknown: return .gray
-        }
-    }
-
-    private var riskColor: Color {
-        switch tool.riskLevel {
-        case .low: return .green
-        case .medium: return .yellow
-        case .high: return .red
-        }
-    }
-
-    private func sourceTypeLabel(_ type: SourceType) -> String {
-        switch type {
-        case .github: return "GitHub"
-        case .local: return "本地"
-        case .homebrew: return "Homebrew"
-        case .npm: return "npm"
-        case .pip: return "pip"
-        case .binary: return "二进制"
-        case .script: return "脚本"
-        case .website: return "网站"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func statusLabel(_ status: ToolStatus) -> String {
-        switch status {
-        case .active: return "活跃"
-        case .archived: return "已归档"
-        case .broken: return "已损坏"
-        case .unknown: return "未知"
-        }
-    }
-
-    private func riskLevelLabel(_ level: RiskLevel) -> String {
-        switch level {
-        case .low: return "低"
-        case .medium: return "中"
-        case .high: return "高"
-        }
-    }
 }
 
 // MARK: - Status Badge

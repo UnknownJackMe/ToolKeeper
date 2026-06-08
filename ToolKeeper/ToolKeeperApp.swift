@@ -59,14 +59,65 @@ struct ToolKeeperApp: App {
             }
         }
 
-        // MARK: - Menu Bar Extra (Placeholder)
+        // MARK: - Menu Bar Extra
 
         MenuBarExtra("ToolKeeper", systemImage: "wrench.and.screwdriver") {
+            MenuBarContentView()
+        }
+        .modelContainer(modelContainer)
+    }
+}
+
+// MARK: - Menu Bar Content View
+
+private struct MenuBarContentView: View {
+    @Query(filter: #Predicate<Tool> { $0.lastUsedAt != nil },
+           sort: \Tool.lastUsedAt, order: .reverse)
+    private var recentTools: [Tool]
+
+    private var lastFive: [Tool] { Array(recentTools.prefix(5)) }
+
+    var body: some View {
+        if lastFive.isEmpty {
             Text("暂无最近使用的工具")
-            Divider()
-            Button("打开 ToolKeeper") {}
+        } else {
+            ForEach(lastFive) { tool in
+                Button {
+                    navigateToTool(tool)
+                } label: {
+                    HStack {
+                        Circle()
+                            .fill(tool.sourceType.color)
+                            .frame(width: 6, height: 6)
+                        Text(tool.name)
+                            .lineLimit(1)
+                        Spacer()
+                        if let lastUsed = tool.lastUsedAt {
+                            Text(lastUsed, style: .relative)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        Divider()
+        Button("打开 ToolKeeper") {
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
+
+    private func navigateToTool(_ tool: Tool) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(
+            name: .navigateToTool,
+            object: tool.id
+        )
+    }
+}
+
+extension Notification.Name {
+    static let navigateToTool = Notification.Name("navigateToTool")
 }
 
 // MARK: - Content View
@@ -80,6 +131,7 @@ struct ContentView: View {
         case dashboard
         case tools
         case importView
+        case aiTools
         case settings
 
         var id: String { rawValue }
@@ -89,6 +141,7 @@ struct ContentView: View {
             case .dashboard: return "仪表盘"
             case .tools: return "工具"
             case .importView: return "导入"
+            case .aiTools: return "AI 工具"
             case .settings: return "设置"
             }
         }
@@ -98,6 +151,7 @@ struct ContentView: View {
             case .dashboard: return "chart.bar"
             case .tools: return "wrench.and.screwdriver"
             case .importView: return "square.and.arrow.down"
+            case .aiTools: return "sparkles"
             case .settings: return "gear"
             }
         }
@@ -118,6 +172,8 @@ struct ContentView: View {
                 ToolsListView()
             case .importView:
                 ImportWizardView()
+            case .aiTools:
+                AIToolsView()
             case .settings:
                 SettingsView()
             case .none:
@@ -127,6 +183,9 @@ struct ContentView: View {
             }
         }
         .navigationTitle("ToolKeeper")
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToTool)) { notification in
+            selectedSidebarItem = .tools
+        }
         .onAppear {
             AppPaths.ensureDirectories()
             let settings = AppSettings.load()

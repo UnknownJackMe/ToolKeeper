@@ -27,13 +27,20 @@ enum BatchImporter {
 
     /// Import tools from import_tools.json if not already done.
     static func importIfNeeded(modelContext: ModelContext) {
+        importIfNeeded(modelContext: modelContext, jsonPath: nil, flagPath: nil)
+    }
+
+    /// Import tools with overridable paths (for testing).
+    static func importIfNeeded(modelContext: ModelContext, jsonPath: String?, flagPath: String?) {
+        let flag = flagPath ?? importFlagPath
+
         // Check if already imported
-        if FileManager.default.fileExists(atPath: importFlagPath) {
+        if FileManager.default.fileExists(atPath: flag) {
             return
         }
 
-        let jsonPath = NSHomeDirectory() + "/ToolKeeper/import_tools.json"
-        guard let data = FileManager.default.contents(atPath: jsonPath) else {
+        let resolvedPath = jsonPath ?? findImportFile()
+        guard let path = resolvedPath, let data = FileManager.default.contents(atPath: path) else {
             // No JSON file, mark as done anyway
             FileManager.default.createFile(atPath: importFlagPath, contents: nil)
             return
@@ -91,6 +98,19 @@ enum BatchImporter {
         }
 
         // Mark as done
-        FileManager.default.createFile(atPath: importFlagPath, contents: nil)
+        FileManager.default.createFile(atPath: flag, contents: nil)
+    }
+
+    private static func findImportFile() -> String? {
+        // 1. User data directory (primary)
+        let userPath = NSHomeDirectory() + "/ToolKeeper/import_tools.json"
+        if FileManager.default.fileExists(atPath: userPath) {
+            return userPath
+        }
+        // 2. App bundle resources (fallback for first-run bundled data)
+        if let bundlePath = Bundle.main.path(forResource: "import_tools", ofType: "json") {
+            return bundlePath
+        }
+        return nil
     }
 }

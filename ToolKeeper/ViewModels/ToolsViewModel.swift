@@ -11,27 +11,18 @@ final class ToolsViewModel {
     var selectedSourceType: SourceType? = nil
     var selectedStatus: ToolStatus? = nil
     var selectedRiskLevel: RiskLevel? = nil
-    var tagFilter: String = ""
-    var sortOrder: SortOrder = .recentlyUsed
+    var tagFilterText: String = ""
+    var sortOption: SortOption = .lastUsed
 
-    // MARK: - Sort Order
+    // MARK: - Sort Option
 
-    enum SortOrder: String, CaseIterable, Identifiable {
-        case recentlyUsed
-        case recentlyAdded
-        case name
-        case riskLevel
+    enum SortOption: String, CaseIterable, Identifiable {
+        case lastUsed = "最近使用"
+        case recentlyAdded = "最近添加"
+        case name = "名称"
+        case riskLevel = "风险等级"
 
         var id: String { rawValue }
-
-        var displayName: String {
-            switch self {
-            case .recentlyUsed: return "Recently Used"
-            case .recentlyAdded: return "Recently Added"
-            case .name: return "Name"
-            case .riskLevel: return "Risk Level"
-            }
-        }
     }
 
     // MARK: - Filtering & Sorting
@@ -39,12 +30,14 @@ final class ToolsViewModel {
     func filteredTools(_ tools: [Tool]) -> [Tool] {
         var result = tools
 
-        // Search filter
+        // Text search
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             result = result.filter { tool in
                 tool.name.lowercased().contains(query)
                     || tool.summary.lowercased().contains(query)
+                    || tool.sourceURL?.lowercased().contains(query) == true
+                    || tool.localPath?.lowercased().contains(query) == true
                     || tool.notes.lowercased().contains(query)
                     || tool.tags.contains { $0.lowercased().contains(query) }
             }
@@ -65,28 +58,32 @@ final class ToolsViewModel {
             result = result.filter { $0.riskLevel == riskLevel }
         }
 
-        // Tag filter
-        if !tagFilter.isEmpty {
-            let query = tagFilter.lowercased()
-            result = result.filter { tool in
-                tool.tags.contains { $0.lowercased().contains(query) }
+        // Tag filter (comma-separated multi-tag)
+        if !tagFilterText.isEmpty {
+            let filterTags = tagFilterText
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+                .filter { !$0.isEmpty }
+            if !filterTags.isEmpty {
+                result = result.filter { tool in
+                    let toolTags = tool.tags.map { $0.lowercased() }
+                    return filterTags.contains { filterTag in
+                        toolTags.contains { $0.contains(filterTag) }
+                    }
+                }
             }
         }
 
         // Sort
-        switch sortOrder {
-        case .recentlyUsed:
-            result.sort { lhs, rhs in
-                let lDate = lhs.lastUsedAt ?? .distantPast
-                let rDate = rhs.lastUsedAt ?? .distantPast
-                return lDate > rDate
-            }
+        switch sortOption {
+        case .lastUsed:
+            result.sort { ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }
         case .recentlyAdded:
             result.sort { $0.createdAt > $1.createdAt }
         case .name:
             result.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case .riskLevel:
-            result.sort { $0.riskLevel.sortOrder < $1.riskLevel.sortOrder }
+            result.sort { $0.riskLevel.sortOrder > $1.riskLevel.sortOrder }
         }
 
         return result

@@ -6,6 +6,10 @@ final class AppSettings: Codable {
     var defaultToolsDirectory: String
     var logRetentionDays: Int
     var dangerPatterns: [String]
+    var anthropicBaseURL: String
+    var anthropicAPIKey: String
+    var anthropicModel: String
+    var anthropicUseFullURL: Bool
 
     static let defaultDangerPatterns: [String] = [
         "rm -rf",
@@ -31,12 +35,20 @@ final class AppSettings: Codable {
         defaultShell: String = "/bin/zsh",
         defaultToolsDirectory: String = "~/Developer",
         logRetentionDays: Int = 30,
-        dangerPatterns: [String] = AppSettings.defaultDangerPatterns
+        dangerPatterns: [String] = AppSettings.defaultDangerPatterns,
+        anthropicBaseURL: String = "https://api.anthropic.com",
+        anthropicAPIKey: String = "",
+        anthropicModel: String = "claude-sonnet-4-20250514",
+        anthropicUseFullURL: Bool = false
     ) {
         self.defaultShell = defaultShell
         self.defaultToolsDirectory = defaultToolsDirectory
         self.logRetentionDays = logRetentionDays
         self.dangerPatterns = dangerPatterns
+        self.anthropicBaseURL = anthropicBaseURL
+        self.anthropicAPIKey = anthropicAPIKey
+        self.anthropicModel = anthropicModel
+        self.anthropicUseFullURL = anthropicUseFullURL
     }
 
     // MARK: - Persistence

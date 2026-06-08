@@ -21,7 +21,7 @@ final class ToolDetailViewModel {
     func runCommand(_ command: ToolCommand, tool: Tool, modelContext: ModelContext, shell: String) {
         let risk = RiskClassifier.classify(command: command.commandText)
 
-        if risk == .high {
+        if risk == .high || command.requiresConfirmation {
             pendingCommand = (tool: tool, command: command)
             showingHighRiskConfirmation = true
             return
