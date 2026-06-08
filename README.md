@@ -13,9 +13,9 @@
 
 ### 方式一：直接下载（推荐）
 
-[![下载 DMG](https://img.shields.io/badge/下载-ToolKeeper%201.0.0-blue?style=for-the-badge&logo=apple)](https://github.com/UnknownJackMe/ToolKeeper/releases/latest/download/ToolKeeper-1.0.0.dmg)
+[![下载 DMG](https://img.shields.io/badge/下载-ToolKeeper%201.0.0-blue?style=for-the-badge&logo=apple)](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.0.0)
 
-1. 下载 `ToolKeeper-1.0.0.dmg`
+1. 前往 [Releases 页面](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.0.0) 下载 `ToolKeeper-1.0.0.dmg`
 2. 打开 DMG，将 **ToolKeeper.app** 拖入 **Applications** 文件夹
 3. 首次启动：右键点击 app → **打开**（绕过 Gatekeeper 未签名提示）
 
