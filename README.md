@@ -9,13 +9,21 @@
 
 ---
 
+## 更新日志
+
+### v1.1.0
+- 新增 **AI 导入**：使用 AI 遍历分析目录，自动识别工具并生成名称、摘要、标签，支持导入前查看与编辑每个识别结果
+- 设置页新增 **AI 配置**：可配置请求地址、API Key、模型名称，支持测试连接（兼容 Anthropic `/v1/messages` 格式及标准兼容端点）
+
+---
+
 ## 安装
 
 ### 方式一：直接下载（推荐）
 
-[![下载 DMG](https://img.shields.io/badge/下载-ToolKeeper%201.0.0-blue?style=for-the-badge&logo=apple)](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.0.0)
+[![下载 DMG](https://img.shields.io/badge/下载-ToolKeeper%201.1.0-blue?style=for-the-badge&logo=apple)](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.1.0)
 
-1. 前往 [Releases 页面](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.0.0) 下载 `ToolKeeper-1.0.0.dmg`
+1. 前往 [Releases 页面](https://github.com/UnknownJackMe/ToolKeeper/releases/tag/v1.1.0) 下载 `ToolKeeper-1.1.0.dmg`
 2. 打开 DMG，将 **ToolKeeper.app** 拖入 **Applications** 文件夹
 3. 首次启动：右键点击 app → **打开**（绕过 Gatekeeper 未签名提示）
 
@@ -73,6 +81,12 @@ xcodebuild \
 
 ![工具详情](Images/ScreenShot_2026-06-08_202251_923.png)
 
+![AI 导入](Images/ScreenShot_2026-06-09_005915_668.png)
+
+![AI 导入 - 查看与编辑](Images/ScreenShot_2026-06-09_005934_314.png)
+
+![设置 - AI 配置](Images/ScreenShot_2026-06-09_005943_582.png)
+
 ---
 
 ## 功能
@@ -86,8 +100,10 @@ xcodebuild \
   - 本地文件夹：自动解析 git 来源、README、npm scripts、Makefile、pyproject.toml
   - GitHub URL：输入仓库地址自动填充信息，可选克隆到本地
   - 批量扫描：递归扫描目录，一次性批量导入多个工具
+  - **AI 导入**：使用 AI 遍历分析目录，自动生成工具名称、摘要、标签，支持导入前逐项查看与编辑
 - **隐私保护** — 自动脱敏 GitHub Token、OpenAI Key、AWS Key、Slack Token 等敏感信息
-- **纯本地** — 无网络请求、无遥测、无账号，所有数据存在本地
+- **AI 配置** — 在设置中配置请求地址、API Key、模型名称，支持测试连接；兼容 Anthropic `/v1/messages` 格式及标准兼容端点
+- **纯本地** — 无遥测、无账号，所有数据存在本地；AI 功能仅在主动使用时请求配置的 API 端点
 
 ---
 
@@ -119,27 +135,34 @@ ToolKeeper/
 │   │   ├── RunHistory.swift         # 运行历史实体（SwiftData）
 │   │   └── AppSettings.swift        # 应用设置（JSON 持久化）
 │   ├── Views/
-│   │   ├── DashboardView.swift      # 仪表盘
-│   │   ├── ToolsListView.swift      # 工具列表（搜索 + 过滤）
-│   │   ├── ToolDetailView.swift     # 工具详情 + 命令执行
-│   │   ├── ToolEditorView.swift     # 新建/编辑工具
-│   │   ├── CommandEditorView.swift  # 新建/编辑命令
-│   │   ├── ImportWizardView.swift   # 导入向导
-│   │   ├── RunConsoleView.swift     # 实时命令输出控制台
-│   │   └── SettingsView.swift       # 设置
+│   │   ├── DashboardView.swift          # 仪表盘
+│   │   ├── ToolsListView.swift          # 工具列表（搜索 + 过滤）
+│   │   ├── ToolDetailView.swift         # 工具详情 + 命令执行
+│   │   ├── ToolEditorView.swift         # 新建/编辑工具
+│   │   ├── CommandEditorView.swift      # 新建/编辑命令
+│   │   ├── ImportWizardView.swift       # 导入向导
+│   │   ├── AIToolsView.swift            # AI 导入视图
+│   │   ├── RunConsoleView.swift         # 实时命令输出控制台
+│   │   └── SettingsView.swift           # 设置
 │   ├── ViewModels/
 │   │   ├── ToolsViewModel.swift
 │   │   ├── ToolDetailViewModel.swift
-│   │   └── ImportViewModel.swift
+│   │   ├── ImportViewModel.swift
+│   │   ├── AIImportViewModel.swift      # AI 导入
+│   │   └── AIToolsViewModel.swift
 │   └── Services/
-│       ├── CommandRunner.swift      # 子进程执行 + 实时输出
-│       ├── RiskClassifier.swift     # 命令风险级别判断
-│       ├── Sanitizer.swift          # 敏感信息脱敏
-│       ├── GitParser.swift          # 解析 git config / GitHub URL
-│       ├── ImportAnalyzer.swift     # 分析文件夹（README、package.json 等）
-│       ├── FolderScanner.swift      # 递归扫描
-│       ├── LogStore.swift           # 日志文件管理
-│       └── AppPaths.swift           # 数据目录路径
+│       ├── CommandRunner.swift          # 子进程执行 + 实时输出
+│       ├── RiskClassifier.swift         # 命令风险级别判断
+│       ├── Sanitizer.swift              # 敏感信息脱敏
+│       ├── GitParser.swift              # 解析 git config / GitHub URL
+│       ├── ImportAnalyzer.swift         # 分析文件夹（README、package.json 等）
+│       ├── FolderScanner.swift          # 递归扫描
+│       ├── AIDirectoryScanner.swift     # AI 目录分析
+│       ├── AnthropicAPIClient.swift     # Anthropic API 客户端
+│       ├── BatchImporter.swift          # 批量导入
+│       ├── ClaudeCodeScanner.swift      # Claude Code 项目扫描
+│       ├── LogStore.swift               # 日志文件管理
+│       └── AppPaths.swift               # 数据目录路径
 └── ToolKeeperTests/
     ├── RiskClassifierTests.swift
     ├── SanitizerTests.swift
@@ -204,6 +227,7 @@ rm -rf ~/Library/Application\ Support/ToolKeeper/ToolKeeper.store
 
 ## 路线图
 
+- [x] AI 导入：自动分析目录并识别工具
 - [ ] 菜单栏快速访问最近工具
 - [ ] 拖拽导入工具文件夹
 - [ ] 工具数据导出/导入（JSON）

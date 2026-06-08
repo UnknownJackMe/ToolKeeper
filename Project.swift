@@ -12,8 +12,8 @@ let project = Project(
             deploymentTargets: .macOS("14.0"),
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "ToolKeeper",
-                "CFBundleShortVersionString": "1.0.0",
-                "CFBundleVersion": "1",
+                "CFBundleShortVersionString": "1.1.0",
+                "CFBundleVersion": "2",
                 "LSMinimumSystemVersion": "14.0",
                 "LSApplicationCategoryType": "public.app-category.developer-tools",
                 "CFBundleIconFile": "AppIcon",
@@ -22,7 +22,7 @@ let project = Project(
                 ],
             ]),
             sources: ["ToolKeeper/**"],
-            resources: ["ToolKeeper/Assets.xcassets/**", "ToolKeeper/AppIcon.icns"],
+            resources: ["ToolKeeper/Assets.xcassets/**", "ToolKeeper/AppIcon.icns", "import_tools.json"],
             entitlements: "ToolKeeper/ToolKeeper.entitlements",
             settings: .settings(
                 base: [
@@ -30,8 +30,8 @@ let project = Project(
                     "MACOSX_DEPLOYMENT_TARGET": "14.0",
                     "CODE_SIGN_STYLE": "Automatic",
                     "PRODUCT_BUNDLE_IDENTIFIER": "com.toolkeeper.app",
-                    "MARKETING_VERSION": "1.0.0",
-                    "CURRENT_PROJECT_VERSION": "1",
+                    "MARKETING_VERSION": "1.1.0",
+                    "CURRENT_PROJECT_VERSION": "2",
                 ]
             )
         ),
