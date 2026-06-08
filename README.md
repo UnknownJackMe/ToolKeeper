@@ -5,6 +5,61 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Release](https://img.shields.io/github/v/release/UnknownJackMe/ToolKeeper)](https://github.com/UnknownJackMe/ToolKeeper/releases/latest)
+
+---
+
+## 安装
+
+### 方式一：直接下载（推荐）
+
+[![下载 DMG](https://img.shields.io/badge/下载-ToolKeeper%201.0.0-blue?style=for-the-badge&logo=apple)](https://github.com/UnknownJackMe/ToolKeeper/releases/latest/download/ToolKeeper-1.0.0.dmg)
+
+1. 下载 `ToolKeeper-1.0.0.dmg`
+2. 打开 DMG，将 **ToolKeeper.app** 拖入 **Applications** 文件夹
+3. 首次启动：右键点击 app → **打开**（绕过 Gatekeeper 未签名提示）
+
+不需要安装任何依赖，开箱即用。
+
+### 方式二：从源码构建
+
+适合想 Fork 后自行修改的开发者。
+
+**前置依赖**
+
+```bash
+# 安装 Tuist（项目生成工具）
+brew install tuist
+```
+
+**克隆 & 运行**
+
+```bash
+git clone https://github.com/UnknownJackMe/ToolKeeper.git
+cd ToolKeeper
+
+# 安装 Swift Package Manager 依赖并生成 Xcode workspace
+tuist install
+tuist generate
+
+# 在 Xcode 中打开，选择 ToolKeeper scheme，按 ⌘R 运行
+open ToolKeeper.xcworkspace
+```
+
+**命令行构建**
+
+```bash
+tuist install && tuist generate
+
+xcodebuild \
+  -workspace ToolKeeper.xcworkspace \
+  -scheme ToolKeeper \
+  -configuration Release \
+  -destination "platform=macOS,arch=arm64" \
+  build
+```
+
+构建产物位于 `./DerivedData/Build/Products/Release/ToolKeeper.app`。
 
 ---
 
@@ -41,47 +96,6 @@
 | macOS | 14.0 (Sonoma) 及以上 |
 | Xcode | 15 及以上 |
 | Tuist | 4.x |
-
----
-
-## 快速开始
-
-### 1. 安装依赖
-
-```bash
-brew install tuist
-```
-
-### 2. 克隆项目
-
-```bash
-git clone https://github.com/your-username/ToolKeeper.git
-cd ToolKeeper
-```
-
-### 3. 生成 Xcode 项目
-
-```bash
-tuist install
-tuist generate
-```
-
-### 4. 在 Xcode 中打开
-
-```bash
-open ToolKeeper.xcworkspace
-```
-
-选择 `ToolKeeper` Scheme，按 `⌘R` 运行。
-
-### 或者命令行构建
-
-```bash
-xcodebuild -workspace ToolKeeper.xcworkspace \
-           -scheme ToolKeeper \
-           -destination "platform=macOS,arch=arm64" \
-           build
-```
 
 ---
 
